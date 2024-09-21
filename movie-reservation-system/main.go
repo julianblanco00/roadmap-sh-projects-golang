@@ -32,12 +32,12 @@ func startWebServer() {
 	}))
 
 	router.POST("/auth/login", auth.HandleLogin)
-	router.GET("/movies", middlewares.JwtAuth(), (func(c *gin.Context) {
+	router.GET("/movies", middlewares.JwtAuth(), func(c *gin.Context) {
 		c.JSON(200, gin.H{
 			"message": "movies",
 		})
 		return
-	}))
+	})
 
 	err := router.Run(":8080")
 	if err != nil {
