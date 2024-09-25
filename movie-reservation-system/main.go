@@ -5,7 +5,6 @@ import (
 	"log"
 	"movie-reservation-system/auth"
 	"movie-reservation-system/database"
-	"movie-reservation-system/middlewares"
 
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
@@ -20,7 +19,6 @@ func loadEnvVariables() {
 }
 
 func startWebServer() {
-	loadEnvVariables()
 	router := gin.New()
 
 	router.Use(cors.New(cors.Config{
@@ -32,12 +30,7 @@ func startWebServer() {
 	}))
 
 	router.POST("/auth/login", auth.HandleLogin)
-	router.GET("/movies", middlewares.JwtAuth(), func(c *gin.Context) {
-		c.JSON(200, gin.H{
-			"message": "movies",
-		})
-		return
-	})
+	router.GET("/movies", database.GetMovies)
 
 	err := router.Run(":8080")
 	if err != nil {
@@ -46,6 +39,7 @@ func startWebServer() {
 }
 
 func main() {
+	loadEnvVariables()
 	database.Connect()
 	startWebServer()
 }

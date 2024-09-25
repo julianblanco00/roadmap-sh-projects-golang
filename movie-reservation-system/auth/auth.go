@@ -9,9 +9,6 @@ import (
 )
 
 func HandleLogin(c *gin.Context) {
-	// TODO: remove
-	database.CreateUser()
-
 	email := c.Request.FormValue("email")
 	password := c.Request.FormValue("password")
 

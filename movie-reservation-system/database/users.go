@@ -1,46 +1,52 @@
 package database
 
-import (
-	"fmt"
-	"movie-reservation-system/hashing"
-)
-
 type User struct {
-	ID       int
-	Name     string
-	Age      int
-	Email    string
-	Password string
-}
-
-var users = []User{}
-
-func CreateUser() (*User, error) {
-	password, err := hashing.HashPassword("password")
-
-	if err != nil {
-		fmt.Println("Error hashing password")
-		return nil, err
-	}
-
-	user := &User{
-		Name:     "Test User",
-		Age:      30,
-		Email:    "testing1@gmail.com",
-		Password: password,
-	}
-
-	users = append(users, *user)
-
-	return user, nil
+	ID        int
+	Name      string
+	Birthdate string
+	Email     string
+	Password  string
 }
 
 func FindUserByEmail(email string) *User {
-	for _, user := range users {
-		if user.Email == email {
-			return &user
-		}
+	db, err := GetDB()
+	if err != nil {
+		return nil
 	}
 
-	return nil
+	row := db.QueryRow("SELECT * FROM users WHERE email = $1", email)
+	var user User
+	err = row.Scan(&user.ID, &user.Name, &user.Birthdate, &user.Email, &user.Password)
+	if err != nil {
+		return nil
+	}
+
+	return &user
+}
+
+func GetUsers() ([]User, error) {
+	db, err := GetDB()
+	if err != nil {
+		return nil, err
+	}
+
+	rows, err := db.Query("SELECT * FROM users")
+	if err != nil {
+		return nil, err
+	}
+
+	defer rows.Close()
+
+	users := []User{}
+	for rows.Next() {
+		var user User
+		err := rows.Scan(&user.ID, &user.Name, &user.Birthdate, &user.Email, &user.Password)
+		if err != nil {
+			return nil, err
+		}
+
+		users = append(users, user)
+	}
+
+	return users, nil
 }
