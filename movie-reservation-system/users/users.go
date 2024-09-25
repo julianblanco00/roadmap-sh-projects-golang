@@ -1,4 +1,6 @@
-package database
+package users
+
+import "movie-reservation-system/database"
 
 type User struct {
 	ID        int
@@ -9,14 +11,20 @@ type User struct {
 }
 
 func FindUserByEmail(email string) *User {
-	db, err := GetDB()
+	row := database.Db.QueryRow("SELECT * FROM users WHERE email = $1", email)
+	var user User
+	err := row.Scan(&user.ID, &user.Name, &user.Birthdate, &user.Email, &user.Password)
 	if err != nil {
 		return nil
 	}
 
-	row := db.QueryRow("SELECT * FROM users WHERE email = $1", email)
+	return &user
+}
+
+func FindUserById(id int) *User {
+	row := database.Db.QueryRow("SELECT * FROM users WHERE id = $1", id)
 	var user User
-	err = row.Scan(&user.ID, &user.Name, &user.Birthdate, &user.Email, &user.Password)
+	err := row.Scan(&user.ID, &user.Name, &user.Birthdate, &user.Email, &user.Password)
 	if err != nil {
 		return nil
 	}
@@ -25,12 +33,7 @@ func FindUserByEmail(email string) *User {
 }
 
 func GetUsers() ([]User, error) {
-	db, err := GetDB()
-	if err != nil {
-		return nil, err
-	}
-
-	rows, err := db.Query("SELECT * FROM users")
+	rows, err := database.Db.Query("SELECT * FROM users")
 	if err != nil {
 		return nil, err
 	}

@@ -1,10 +1,12 @@
-package database
+package movies
 
 import (
 	"fmt"
+	"movie-reservation-system/database"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
+	"github.com/golang-jwt/jwt"
 )
 
 type Movie struct {
@@ -48,12 +50,10 @@ func GetMovies(c *gin.Context) {
       casting c ON ma.casting_id = c.id
     GROUP BY 
       m.id, m.title, m.year, m.description, m.image_url
-    ORDER BY
-	    title
   `,
 		lastId)
 
-	rows, err := Db.Query(query)
+	rows, err := database.Db.Query(query)
 	if err != nil {
 		c.JSON(500, gin.H{"error": err.Error()})
 		return
@@ -68,4 +68,16 @@ func GetMovies(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"movies": movies})
+}
+
+type UserClaims struct {
+	ID int `json:"_id"`
+	jwt.MapClaims
+}
+
+func ReserveMovie(c *gin.Context) {
+	movieId := c.Param("id")
+	user := c.MustGet("user")
+
+	c.JSON(http.StatusOK, gin.H{"movie_id": movieId, "user": user})
 }

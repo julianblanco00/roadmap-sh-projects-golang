@@ -5,6 +5,8 @@ import (
 	"log"
 	"movie-reservation-system/auth"
 	"movie-reservation-system/database"
+	"movie-reservation-system/middlewares"
+	"movie-reservation-system/movies"
 
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
@@ -30,7 +32,13 @@ func startWebServer() {
 	}))
 
 	router.POST("/auth/login", auth.HandleLogin)
-	router.GET("/movies", database.GetMovies)
+	router.GET("/movies", movies.GetMovies)
+	router.POST(
+		"/movie/:id/reserve",
+		middlewares.JwtAuth(),
+		middlewares.ValidUser(),
+		movies.ReserveMovie,
+	)
 
 	err := router.Run(":8080")
 	if err != nil {

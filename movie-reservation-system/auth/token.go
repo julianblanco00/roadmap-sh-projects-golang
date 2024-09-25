@@ -3,6 +3,7 @@ package auth
 import (
 	"fmt"
 	"os"
+	"strconv"
 	"strings"
 
 	"github.com/gin-gonic/gin"
@@ -11,7 +12,7 @@ import (
 
 func SignToken(userId int) (string, error) {
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
-		"userId": userId,
+		"_id": strconv.Itoa(userId),
 	})
 
 	tokenString, err := token.SignedString([]byte(os.Getenv("SECRET")))

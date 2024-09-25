@@ -1,7 +1,6 @@
 package middlewares
 
 import (
-	"fmt"
 	"movie-reservation-system/auth"
 	"net/http"
 
@@ -17,8 +16,7 @@ func JwtAuth() gin.HandlerFunc {
 			return
 		}
 
-		fmt.Println(user.Claims)
-
+		c.Set("user", user.Claims)
 		c.Next()
 	}
 }

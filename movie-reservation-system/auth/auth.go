@@ -1,8 +1,8 @@
 package auth
 
 import (
-	"movie-reservation-system/database"
 	"movie-reservation-system/hashing"
+	"movie-reservation-system/users"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -12,7 +12,7 @@ func HandleLogin(c *gin.Context) {
 	email := c.Request.FormValue("email")
 	password := c.Request.FormValue("password")
 
-	user := database.FindUserByEmail(email)
+	user := users.FindUserByEmail(email)
 	if user == nil {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid credentials"})
 		return
