@@ -1,6 +1,12 @@
 package users
 
-import "movie-reservation-system/database"
+import (
+	"movie-reservation-system/database"
+	"strconv"
+
+	"github.com/gin-gonic/gin"
+	"github.com/golang-jwt/jwt"
+)
 
 type User struct {
 	ID        int
@@ -8,6 +14,12 @@ type User struct {
 	Birthdate string
 	Email     string
 	Password  string
+}
+
+func ExtractUserIdFromClaims(c *gin.Context) int {
+	userClaims := c.MustGet("user").(jwt.MapClaims)
+	userIdInt, _ := strconv.Atoi(userClaims["_id"].(string))
+	return userIdInt
 }
 
 func FindUserByEmail(email string) *User {

@@ -3,6 +3,7 @@ package movies
 import (
 	"fmt"
 	"movie-reservation-system/database"
+	"movie-reservation-system/users"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -75,9 +76,67 @@ type UserClaims struct {
 	jwt.MapClaims
 }
 
-func ReserveMovie(c *gin.Context) {
-	movieId := c.Param("id")
-	user := c.MustGet("user")
+func generalError(c *gin.Context) {
+	c.JSON(http.StatusInternalServerError, gin.H{"error": "an error ocurred"})
+}
 
-	c.JSON(http.StatusOK, gin.H{"movie_id": movieId, "user": user})
+func ReserveMovie(c *gin.Context) {
+	date := c.PostForm("date")
+	seat := c.PostForm("seat")
+
+	if date == "" || seat == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "date and seat are required"})
+		return
+	}
+
+	userId := users.ExtractUserIdFromClaims(c)
+	movieId := c.Param("id")
+
+	tx, err := database.Db.Begin()
+	if err != nil {
+		generalError(c)
+		return
+	}
+
+	defer func() {
+		if err != nil {
+			tx.Rollback()
+		}
+	}()
+
+	exists := false
+	err = tx.QueryRow(`
+    SELECT EXISTS (
+      SELECT 1 FROM Reservation
+      WHERE movie_id = $1 
+        AND seat = $2
+      FOR UPDATE
+    )`,
+		userId, movieId).Scan(&exists)
+	if err != nil {
+		generalError(c)
+		return
+	}
+
+	if exists {
+		c.JSON(http.StatusConflict, gin.H{"error": "seat already reserved"})
+		return
+	}
+
+	_, err = tx.Exec(`
+    INSERT INTO Reservation (movie_id, user_id, date, seat)
+    VALUES ($1, $2, $3, $4)
+  `, movieId, userId, date, seat)
+	if err != nil {
+		generalError(c)
+		return
+	}
+
+	err = tx.Commit()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "an error ocurred"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"date": date, "seat": seat})
 }
