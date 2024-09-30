@@ -132,7 +132,7 @@ func GetReservations(c *gin.Context) {
 		JOIN
 			Movies m ON r.movie_id = m.id
 		WHERE
-			r.user_id = $1
+			r.user_id = $1 AND r.deleted_at IS NULL
 		`
 
 	rows, err := database.Db.Query(query, userId)
@@ -171,17 +171,28 @@ func GetReservations(c *gin.Context) {
 
 func CancelReservation(c *gin.Context) {
 	userId := users.ExtractUserIdFromClaims(c)
-	reservationId := c.Param("id")
+	movieId := c.Param("id")
 
 	query := `
 		UPDATE Reservation
 		SET deleted_at = NOW()
-		WHERE id = $1 AND user_id = $2
+		WHERE movie_id = $1 AND user_id = $2 AND deleted_at IS NULL
 	`
 
-	_, err := database.Db.Exec(query, reservationId, userId)
+	res, err := database.Db.Exec(query, movieId, userId)
 	if err != nil {
 		generalError(c, err)
+		return
+	}
+
+	rowsAffected, err := res.RowsAffected()
+	if err != nil {
+		generalError(c, err)
+		return
+	}
+
+	if rowsAffected == 0 {
+		c.JSON(http.StatusNotFound, gin.H{"error": "reservation not found"})
 		return
 	}
 
