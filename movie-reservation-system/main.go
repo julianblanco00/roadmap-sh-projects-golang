@@ -39,6 +39,12 @@ func startWebServer() {
 		middlewares.ValidUser(),
 		movies.ReserveMovie,
 	)
+	router.GET(
+		"/user/reservations",
+		middlewares.JwtAuth(),
+		middlewares.ValidUser(),
+		movies.GetReservations,
+	)
 
 	err := router.Run(":8080")
 	if err != nil {

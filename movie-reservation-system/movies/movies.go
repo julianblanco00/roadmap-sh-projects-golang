@@ -33,7 +33,7 @@ func GetMovies(c *gin.Context) {
 		lastId = lastIdParam
 	}
 
-	query := fmt.Sprintf(`
+	query := `
 		SELECT
 			m.id,
 			m.title,
@@ -43,7 +43,7 @@ func GetMovies(c *gin.Context) {
 			STRING_AGG(DISTINCT g.name, ', ') AS genres,
 			STRING_AGG(DISTINCT c.name, ', ') AS cast
 			FROM 
-			(SELECT * FROM Movies WHERE id > %s LIMIT 10) AS m
+			(SELECT * FROM Movies WHERE id > $1 LIMIT 10) AS m
 			LEFT JOIN 
 			movies_genres mg ON m.id = mg.movie_id
 			LEFT JOIN 
@@ -54,11 +54,9 @@ func GetMovies(c *gin.Context) {
 			casting c ON ma.casting_id = c.id
 			GROUP BY 
 			m.id, m.title, m.year, m.description, m.image_url
-		`,
-		lastId,
-	)
+		`
 
-	rows, err := database.Db.Query(query)
+	rows, err := database.Db.Query(query, lastId)
 	if err != nil {
 		c.JSON(500, gin.H{"error": err.Error()})
 		return
@@ -80,7 +78,8 @@ type UserClaims struct {
 	jwt.MapClaims
 }
 
-func generalError(c *gin.Context) {
+func generalError(c *gin.Context, err error) {
+	fmt.Println(err)
 	c.JSON(http.StatusInternalServerError, gin.H{"error": "an error ocurred"})
 }
 
@@ -116,8 +115,7 @@ func ReserveMovie(c *gin.Context) {
 
 	tx, err := database.Db.Begin()
 	if err != nil {
-		fmt.Println(err)
-		generalError(c)
+		generalError(c, err)
 		return
 	}
 
@@ -137,8 +135,7 @@ func ReserveMovie(c *gin.Context) {
 		)
 	`, movieId, pq.Array(reserveBody.Seats)).Scan(&exists)
 	if err != nil {
-		fmt.Println(err)
-		generalError(c)
+		generalError(c, err)
 		return
 	}
 
@@ -153,7 +150,7 @@ func ReserveMovie(c *gin.Context) {
 			VALUES ($1, $2, $3, $4)
 		`, movieId, userId, date, seat)
 		if err != nil {
-			generalError(c)
+			generalError(c, err)
 			return
 		}
 	}
@@ -165,4 +162,69 @@ func ReserveMovie(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"date": date, "seats": reserveBody.Seats})
+}
+
+type Reservation struct {
+	Date     string `json:"date"`
+	Seat     string `json:"seat"`
+	Title    string `json:"title"`
+	ImageUrl string `json:"image_url"`
+}
+
+type ReservationMap struct {
+	ImageUrl string   `json:"image_url"`
+	Title    string   `json:"title"`
+	Date     string   `json:"date"`
+	Seats    []string `json:"seats"`
+}
+
+func GetReservations(c *gin.Context) {
+	userId := users.ExtractUserIdFromClaims(c)
+
+	query := `
+		SELECT
+			r.date,
+			r.seat,
+			m.title,
+			m.image_url
+		FROM
+			Reservation r
+		JOIN
+			Movies m ON r.movie_id = m.id
+		WHERE
+			r.user_id = $1
+		`
+
+	rows, err := database.Db.Query(query, userId)
+	if err != nil {
+		generalError(c, err)
+		return
+	}
+
+	defer rows.Close()
+
+	var reservations []Reservation
+	var reservation Reservation
+
+	for rows.Next() {
+		rows.Scan(&reservation.Date, &reservation.Seat, &reservation.Title, &reservation.ImageUrl)
+		reservations = append(reservations, reservation)
+	}
+
+	reservationsMap := make(map[string]ReservationMap)
+	for _, r := range reservations {
+		if entry, ok := reservationsMap[r.Title]; ok {
+			entry.Seats = append(entry.Seats, r.Seat)
+			reservationsMap[r.Title] = entry
+		} else {
+			reservationsMap[r.Title] = ReservationMap{
+				Title:    r.Title,
+				ImageUrl: r.ImageUrl,
+				Date:     r.Date,
+				Seats:    []string{r.Seat},
+			}
+		}
+	}
+
+	c.JSON(http.StatusOK, gin.H{"reservations": reservationsMap})
 }
