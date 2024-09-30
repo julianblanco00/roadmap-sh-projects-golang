@@ -7,6 +7,7 @@ import (
 	"movie-reservation-system/database"
 	"movie-reservation-system/middlewares"
 	"movie-reservation-system/movies"
+	"movie-reservation-system/reservation"
 
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
@@ -37,13 +38,19 @@ func startWebServer() {
 		"/movie/:id/reserve",
 		middlewares.JwtAuth(),
 		middlewares.ValidUser(),
-		movies.ReserveMovie,
+		reservation.ReserveMovie,
 	)
 	router.GET(
 		"/user/reservations",
 		middlewares.JwtAuth(),
 		middlewares.ValidUser(),
-		movies.GetReservations,
+		reservation.GetReservations,
+	)
+	router.DELETE(
+		"/user/reservations/:id",
+		middlewares.JwtAuth(),
+		middlewares.ValidUser(),
+		reservation.CancelReservation,
 	)
 
 	err := router.Run(":8080")
