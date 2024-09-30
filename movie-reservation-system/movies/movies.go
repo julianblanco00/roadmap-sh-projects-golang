@@ -10,6 +10,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt"
+	"github.com/lib/pq"
 )
 
 type Movie struct {
@@ -103,6 +104,11 @@ func ReserveMovie(c *gin.Context) {
 		return
 	}
 
+	if len(reserveBody.Seats) > 5 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "max 5 seats per reservation"})
+		return
+	}
+
 	date := reserveBody.Date
 
 	userId := users.ExtractUserIdFromClaims(c)
@@ -110,6 +116,7 @@ func ReserveMovie(c *gin.Context) {
 
 	tx, err := database.Db.Begin()
 	if err != nil {
+		fmt.Println(err)
 		generalError(c)
 		return
 	}
@@ -120,26 +127,27 @@ func ReserveMovie(c *gin.Context) {
 		}
 	}()
 
-	for _, seat := range reserveBody.Seats {
-		exists := false
-		err = tx.QueryRow(`
-			SELECT EXISTS (
+	exists := false
+	err = tx.QueryRow(`
+		SELECT EXISTS (
 			SELECT 1 FROM Reservation
 			WHERE movie_id = $1
-				AND seat = $2
+				AND seat = ANY($2)
 			FOR UPDATE
-			)
-		`, userId, movieId).Scan(&exists)
-		if err != nil {
-			generalError(c)
-			return
-		}
+		)
+	`, movieId, pq.Array(reserveBody.Seats)).Scan(&exists)
+	if err != nil {
+		fmt.Println(err)
+		generalError(c)
+		return
+	}
 
-		if exists {
-			c.JSON(http.StatusConflict, gin.H{"error": "seat already reserved"})
-			return
-		}
+	if exists {
+		c.JSON(http.StatusConflict, gin.H{"error": "seat already reserved"})
+		return
+	}
 
+	for _, seat := range reserveBody.Seats {
 		_, err = tx.Exec(`
 			INSERT INTO Reservation (movie_id, user_id, date, seat)
 			VALUES ($1, $2, $3, $4)
