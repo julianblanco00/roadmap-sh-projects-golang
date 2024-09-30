@@ -1,7 +1,9 @@
 package movies
 
 import (
+	"encoding/json"
 	"fmt"
+	"io"
 	"movie-reservation-system/database"
 	"movie-reservation-system/users"
 	"net/http"
@@ -31,28 +33,29 @@ func GetMovies(c *gin.Context) {
 	}
 
 	query := fmt.Sprintf(`
-    SELECT 
-      m.id,
-      m.title,
-      m.year,
-      m.description,
-      m.image_url,
-      STRING_AGG(DISTINCT g.name, ', ') AS genres,
-      STRING_AGG(DISTINCT c.name, ', ') AS cast
-    FROM 
-      (SELECT * FROM Movies WHERE id > %s LIMIT 10) AS m
-    LEFT JOIN 
-      movies_genres mg ON m.id = mg.movie_id
-    LEFT JOIN 
-      genres g ON mg.genre_id = g.id
-    LEFT JOIN 
-      movies_casting ma ON m.id = ma.movie_id
-    LEFT JOIN 
-      casting c ON ma.casting_id = c.id
-    GROUP BY 
-      m.id, m.title, m.year, m.description, m.image_url
-  `,
-		lastId)
+		SELECT
+			m.id,
+			m.title,
+			m.year,
+			m.description,
+			m.image_url,
+			STRING_AGG(DISTINCT g.name, ', ') AS genres,
+			STRING_AGG(DISTINCT c.name, ', ') AS cast
+			FROM 
+			(SELECT * FROM Movies WHERE id > %s LIMIT 10) AS m
+			LEFT JOIN 
+			movies_genres mg ON m.id = mg.movie_id
+			LEFT JOIN 
+			genres g ON mg.genre_id = g.id
+			LEFT JOIN 
+			movies_casting ma ON m.id = ma.movie_id
+			LEFT JOIN 
+			casting c ON ma.casting_id = c.id
+			GROUP BY 
+			m.id, m.title, m.year, m.description, m.image_url
+		`,
+		lastId,
+	)
 
 	rows, err := database.Db.Query(query)
 	if err != nil {
@@ -80,14 +83,27 @@ func generalError(c *gin.Context) {
 	c.JSON(http.StatusInternalServerError, gin.H{"error": "an error ocurred"})
 }
 
-func ReserveMovie(c *gin.Context) {
-	date := c.PostForm("date")
-	seat := c.PostForm("seat")
+type ReserveBody struct {
+	Seats []string `json:"seats"`
+	Date  string   `json:"date"`
+}
 
-	if date == "" || seat == "" {
+func ReserveMovie(c *gin.Context) {
+	var reserveBody ReserveBody
+	jsonData, err := io.ReadAll(c.Request.Body)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid json"})
+		return
+	}
+
+	json.Unmarshal(jsonData, &reserveBody)
+
+	if len(reserveBody.Seats) == 0 || reserveBody.Date == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "date and seat are required"})
 		return
 	}
+
+	date := reserveBody.Date
 
 	userId := users.ExtractUserIdFromClaims(c)
 	movieId := c.Param("id")
@@ -104,32 +120,34 @@ func ReserveMovie(c *gin.Context) {
 		}
 	}()
 
-	exists := false
-	err = tx.QueryRow(`
-    SELECT EXISTS (
-      SELECT 1 FROM Reservation
-      WHERE movie_id = $1 
-        AND seat = $2
-      FOR UPDATE
-    )`,
-		userId, movieId).Scan(&exists)
-	if err != nil {
-		generalError(c)
-		return
-	}
+	for _, seat := range reserveBody.Seats {
+		exists := false
+		err = tx.QueryRow(`
+			SELECT EXISTS (
+			SELECT 1 FROM Reservation
+			WHERE movie_id = $1
+				AND seat = $2
+			FOR UPDATE
+			)
+		`, userId, movieId).Scan(&exists)
+		if err != nil {
+			generalError(c)
+			return
+		}
 
-	if exists {
-		c.JSON(http.StatusConflict, gin.H{"error": "seat already reserved"})
-		return
-	}
+		if exists {
+			c.JSON(http.StatusConflict, gin.H{"error": "seat already reserved"})
+			return
+		}
 
-	_, err = tx.Exec(`
-    INSERT INTO Reservation (movie_id, user_id, date, seat)
-    VALUES ($1, $2, $3, $4)
-  `, movieId, userId, date, seat)
-	if err != nil {
-		generalError(c)
-		return
+		_, err = tx.Exec(`
+			INSERT INTO Reservation (movie_id, user_id, date, seat)
+			VALUES ($1, $2, $3, $4)
+		`, movieId, userId, date, seat)
+		if err != nil {
+			generalError(c)
+			return
+		}
 	}
 
 	err = tx.Commit()
@@ -138,5 +156,5 @@ func ReserveMovie(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"date": date, "seat": seat})
+	c.JSON(http.StatusOK, gin.H{"date": date, "seats": reserveBody.Seats})
 }
