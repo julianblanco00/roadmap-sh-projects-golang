@@ -1,6 +1,7 @@
 package users
 
 import (
+	"fmt"
 	"movie-reservation-system/database"
 	"strconv"
 
@@ -14,6 +15,7 @@ type User struct {
 	Birthdate string
 	Email     string
 	Password  string
+	Role      string
 }
 
 func ExtractUserIdFromClaims(c *gin.Context) int {
@@ -22,10 +24,18 @@ func ExtractUserIdFromClaims(c *gin.Context) int {
 	return userIdInt
 }
 
+func ExtractRoleFromClaims(c *gin.Context) (error, string) {
+	userClaims := c.MustGet("user").(jwt.MapClaims)
+	if userClaims["role"] == nil {
+		return fmt.Errorf("Role not found"), ""
+	}
+	return nil, userClaims["role"].(string)
+}
+
 func FindUserByEmail(email string) *User {
 	row := database.Db.QueryRow("SELECT * FROM users WHERE email = $1", email)
 	var user User
-	err := row.Scan(&user.ID, &user.Name, &user.Birthdate, &user.Email, &user.Password)
+	err := row.Scan(&user.ID, &user.Name, &user.Birthdate, &user.Email, &user.Password, &user.Role)
 	if err != nil {
 		return nil
 	}
@@ -36,7 +46,7 @@ func FindUserByEmail(email string) *User {
 func FindUserById(id int) *User {
 	row := database.Db.QueryRow("SELECT * FROM users WHERE id = $1", id)
 	var user User
-	err := row.Scan(&user.ID, &user.Name, &user.Birthdate, &user.Email, &user.Password)
+	err := row.Scan(&user.ID, &user.Name, &user.Birthdate, &user.Email, &user.Password, &user.Role)
 	if err != nil {
 		return nil
 	}
@@ -55,7 +65,7 @@ func GetUsers() ([]User, error) {
 	users := []User{}
 	for rows.Next() {
 		var user User
-		err := rows.Scan(&user.ID, &user.Name, &user.Birthdate, &user.Email, &user.Password)
+		err := rows.Scan(&user.ID, &user.Name, &user.Birthdate, &user.Email, &user.Password, &user.Role)
 		if err != nil {
 			return nil, err
 		}

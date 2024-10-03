@@ -10,9 +10,10 @@ import (
 	"github.com/golang-jwt/jwt"
 )
 
-func SignToken(userId int) (string, error) {
+func SignToken(userId int, role string) (string, error) {
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
-		"_id": strconv.Itoa(userId),
+		"_id":  strconv.Itoa(userId),
+		"role": role,
 	})
 
 	tokenString, err := token.SignedString([]byte(os.Getenv("SECRET")))

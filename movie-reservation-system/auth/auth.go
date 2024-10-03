@@ -1,6 +1,7 @@
 package auth
 
 import (
+	"fmt"
 	"movie-reservation-system/hashing"
 	"movie-reservation-system/users"
 	"net/http"
@@ -13,6 +14,8 @@ func HandleLogin(c *gin.Context) {
 	password := c.Request.FormValue("password")
 
 	user := users.FindUserByEmail(email)
+	fmt.Println(user, email)
+
 	if user == nil {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid credentials"})
 		return
@@ -24,7 +27,7 @@ func HandleLogin(c *gin.Context) {
 		return
 	}
 
-	token, err := SignToken(user.ID)
+	token, err := SignToken(user.ID, user.Role)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal server error"})
 		return
